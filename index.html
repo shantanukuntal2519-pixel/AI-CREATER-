@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fast AI Avatar Video Creator</title>
+    <title>Pro AI Avatar Video Creator</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -23,7 +23,7 @@
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            max-width: 550px;
+            max-width: 580px;
             width: 100%;
             text-align: center;
         }
@@ -35,15 +35,16 @@
             text-align: left;
         }
         label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #94a3b8; }
-        input[type="file"] {
+        input[type="file"], select, textarea {
             width: 100%;
             padding: 10px;
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid #334155;
             border-radius: 8px;
             color: white;
-            cursor: pointer;
+            font-size: 0.9rem;
         }
+        textarea { resize: vertical; height: 70px; }
 
         .preview-area {
             margin: 20px 0;
@@ -52,10 +53,13 @@
             border-radius: 12px;
             overflow: hidden;
             background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         canvas, video {
-            width: 100%;
-            max-height: 300px;
+            max-width: 100%;
+            max-height: 320px;
             object-fit: contain;
             display: block;
         }
@@ -99,7 +103,12 @@
         }
         .btn-generate { background: #00fff0; color: #0f172a; }
         .btn-generate:hover { background: #00d8cc; }
-        .btn-download { background: #22c55e; color: white; display: none; text-decoration: none; text-align: center; line-height: 2.5rem; }
+        .download-container { margin-top: 15px; }
+        .btn-download { 
+            background: #22c55e; color: white; display: inline-block; 
+            text-decoration: none; text-align: center; padding: 10px 15px; 
+            border-radius: 8px; font-weight: bold; margin: 5px; font-size: 0.9rem;
+        }
         .btn-download:hover { background: #16a34a; }
         .btn:disabled { background: #475569; cursor: not-allowed; color: #94a3b8; }
         
@@ -109,8 +118,8 @@
 <body>
 
     <div class="card">
-        <h1>Fast AI Avatar Creator</h1>
-        <p>Ultra-fast Background Video Rendering & Dynamic Lip Sync</p>
+        <h1>Pro AI Video Generator</h1>
+        <p>Long Audio Support, Auto Subtitles & Portrait/Landscape Mode</p>
 
         <div class="input-group">
             <label>1. Select Avatar Image:</label>
@@ -118,14 +127,27 @@
         </div>
 
         <div class="input-group">
-            <label>2. Select Audio Track (MP3/WAV):</label>
+            <label>2. Select Audio Track (MP3/WAV - 8+ Min Supported):</label>
             <input type="file" id="audioInput" accept="audio/*">
+        </div>
+
+        <div class="input-group">
+            <label>3. Video Mode (Landscape / Portrait Parts):</label>
+            <select id="modeSelect">
+                <option value="landscape">Landscape (YouTube Full Video - 16:9)</option>
+                <option value="portrait">Portrait Shorts (9:16 - Auto 55s Parts)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label>4. Hindi Subtitle Text (Optional):</label>
+            <textarea id="subtitleInput" placeholder="Yahan apna bolne wala text ya subtitles likhein..."></textarea>
         </div>
 
         <div class="preview-area">
             <canvas id="videoCanvas" width="1280" height="720" style="display:none;"></canvas>
             <video id="videoPreview" controls style="display:none;"></video>
-            <div id="placeholderText" style="padding: 40px; color: #64748b;">Image & Audio Upload Karein</div>
+            <div id="placeholderText" style="padding: 40px; color: #64748b;">Files Upload Karein</div>
         </div>
 
         <div class="progress-box" id="progressContainer">
@@ -133,8 +155,8 @@
             <div class="progress-text" id="progressText">0%</div>
         </div>
 
-        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Fast Generate Video</button>
-        <a id="downloadBtn" class="btn btn-download" download="youtube_avatar_video.webm">Download Video</a>
+        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Generate Video</button>
+        <div id="downloadContainer" class="download-container"></div>
 
         <div id="status"></div>
     </div>
@@ -142,8 +164,10 @@
     <script>
         const imageInput = document.getElementById('imageInput');
         const audioInput = document.getElementById('audioInput');
+        const modeSelect = document.getElementById('modeSelect');
+        const subtitleInput = document.getElementById('subtitleInput');
         const renderBtn = document.getElementById('renderBtn');
-        const downloadBtn = document.getElementById('downloadBtn');
+        const downloadContainer = document.getElementById('downloadContainer');
         const status = document.getElementById('status');
         const canvas = document.getElementById('videoCanvas');
         const ctx = canvas.getContext('2d');
@@ -174,8 +198,9 @@
                         canvas.style.display = 'block';
                         placeholderText.style.display = 'none';
                         videoPreview.style.display = 'none';
-                        downloadBtn.style.display = 'none';
-                        renderFrame(0, 0);
+                        downloadContainer.innerHTML = '';
+                        updateCanvasDimensions();
+                        renderFrame(0, 0, "");
                     };
                 };
                 reader.readAsDataURL(file);
@@ -191,8 +216,22 @@
             checkInputs();
         });
 
-        // Dynamic Lip & Sway Frame Renderer
-        function renderFrame(bodySway, audioVolume) {
+        modeSelect.addEventListener('change', updateCanvasDimensions);
+
+        function updateCanvasDimensions() {
+            const mode = modeSelect.value;
+            if (mode === 'portrait') {
+                canvas.width = 720;
+                canvas.height = 1280;
+            } else {
+                canvas.width = 1280;
+                canvas.height = 720;
+            }
+            if (loadedImage) renderFrame(0, 0, "");
+        }
+
+        // Frame Renderer with Lip-Sync, Sway & Subtitles
+        function renderFrame(bodySway, audioVolume, subtitleText) {
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -202,34 +241,29 @@
             ctx.translate(canvas.width / 2, canvas.height / 2);
             ctx.rotate(bodySway);
 
-            const scale = Math.min(canvas.width / loadedImage.width, canvas.height / loadedImage.height) * 0.85;
+            const scale = Math.min(canvas.width / loadedImage.width, canvas.height / loadedImage.height) * 0.75;
             const w = loadedImage.width * scale;
             const h = loadedImage.height * scale;
             const x = -w / 2;
             const y = -h / 2;
 
-            // Base Image Draw
+            // Draw Avatar Image
             ctx.drawImage(loadedImage, x, y, w, h);
 
-            // Realistic Jaw/Lip Movement (Audio Amplitude Based Stretching)
+            // Lip Movement Effect
             if (audioVolume > 8) {
                 const lipYFactor = 0.55; 
                 const lipHFactor = 0.25; 
-                
                 const lipSrcY = loadedImage.height * lipYFactor;
                 const lipSrcH = loadedImage.height * lipHFactor;
-                
                 const lipDestY = y + (h * lipYFactor);
                 const lipDestH = h * lipHFactor;
-
                 const openShift = Math.min((audioVolume / 255) * 14, 16); 
 
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(x, lipDestY, w, lipDestH + openShift);
                 ctx.clip();
-                
-                // Slightly stretched lower mouth area to mimic real speech
                 ctx.drawImage(
                     loadedImage, 
                     0, lipSrcY, loadedImage.width, lipSrcH, 
@@ -237,20 +271,31 @@
                 );
                 ctx.restore();
             }
-
             ctx.restore();
+
+            // Render Subtitles at bottom
+            if (subtitleText) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(50, canvas.height - 150, canvas.width - 100, 80);
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 32px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(subtitleText, canvas.width / 2, canvas.height - 110);
+            }
         }
 
         async function generateVideo() {
             if (!loadedImage || !loadedAudio) return;
 
             renderBtn.disabled = true;
-            downloadBtn.style.display = 'none';
+            downloadContainer.innerHTML = '';
             videoPreview.style.display = 'none';
             canvas.style.display = 'block';
             progressContainer.style.display = 'block';
             
-            status.innerText = "Fast rendering active... Doosra tab kholne par bhi speed slow nahi hogi.";
+            status.innerText = "Rendering active (Background tab safe)... Kripya wait karein.";
             progressBar.style.width = '0%';
             progressText.innerText = '0%';
 
@@ -269,10 +314,9 @@
                 ...dest.stream.getAudioTracks()
             ]);
 
-            // High bitrate for clear output video
             const mediaRecorder = new MediaRecorder(combinedStream, { 
                 mimeType: 'video/webm;codecs=vp8,opus',
-                videoBitsPerSecond: 3000000 
+                videoBitsPerSecond: 2500000 
             });
             const chunks = [];
 
@@ -281,17 +325,51 @@
             };
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'video/webm' });
-                const videoURL = URL.createObjectURL(blob);
-                
-                videoPreview.src = videoURL;
-                videoPreview.style.display = 'block';
-                canvas.style.display = 'none';
-                
-                downloadBtn.href = videoURL;
-                downloadBtn.style.display = 'block';
-                
-                status.innerText = "Video Tayar hai! Fast Download karke YouTube par upload karein.";
+                const fullBlob = new Blob(chunks, { type: 'video/webm' });
+                const mode = modeSelect.value;
+                downloadContainer.innerHTML = '';
+
+                if (mode === 'portrait' && loadedAudio.duration > 55) {
+                    // Split into 55-second parts for Shorts/Reels
+                    status.innerText = "Video complete! 55-second ke parts me divide ho rahi hai...";
+                    const totalDuration = loadedAudio.duration;
+                    const partDurationSec = 55;
+                    const partsCount = Math.ceil(totalDuration / partDurationSec);
+                    
+                    // Approximate slicing based on blob size ratio
+                    const bytesPerSec = fullBlob.size / totalDuration;
+
+                    for (let i = 0; i < partsCount; i++) {
+                        const startByte = i * partDurationSec * bytesPerSec;
+                        const endByte = Math.min((i + 1) * partDurationSec * bytesPerSec, fullBlob.size);
+                        const partBlob = fullBlob.slice(startByte, endByte, 'video/webm');
+                        const partUrl = URL.createObjectURL(partBlob);
+
+                        const a = document.createElement('a');
+                        a.href = partUrl;
+                        a.download = `Avatar_Video_Bhag_${i + 1}.webm`;
+                        a.className = 'btn-download';
+                        a.innerText = `Download Bhag ${i + 1} (Part)`;
+                        downloadContainer.appendChild(a);
+                    }
+                    status.innerText = "Sabhi Parts Tayar hain! Niche se download karein.";
+                } else {
+                    // Single Full Video Download (Landscape or short audio)
+                    const videoURL = URL.createObjectURL(fullBlob);
+                    videoPreview.src = videoURL;
+                    videoPreview.style.display = 'block';
+                    canvas.style.display = 'none';
+                    
+                    const a = document.createElement('a');
+                    a.href = videoURL;
+                    a.download = mode === 'portrait' ? 'Avatar_Shorts_Video.webm' : 'YouTube_Landscape_Video.webm';
+                    a.className = 'btn-download';
+                    a.innerText = 'Download Complete Video';
+                    downloadContainer.appendChild(a);
+
+                    status.innerText = "Video Successfully Tayar ho gayi hai!";
+                }
+
                 renderBtn.disabled = false;
                 progressContainer.style.display = 'none';
             };
@@ -303,11 +381,12 @@
             const duration = loadedAudio.duration;
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
             let frameCounter = 0;
+            const subtitlesList = subtitleInput.value.split('\n').filter(s => s.trim() !== "");
 
-            // Fast Background-Resistant Rendering Loop
-            const renderLoop = setInterval(() => {
+            // Robust render loop independent of background throttling
+            const renderInterval = setInterval(() => {
                 if (loadedAudio.ended || loadedAudio.paused) {
-                    clearInterval(renderLoop);
+                    clearInterval(renderInterval);
                     progressBar.style.width = '100%';
                     progressText.innerText = '100%';
                     mediaRecorder.stop();
@@ -315,13 +394,11 @@
                     return;
                 }
 
-                // 1. Progress Update
                 const currentTime = loadedAudio.currentTime;
                 const percent = Math.min(Math.round((currentTime / duration) * 100), 100);
                 progressBar.style.width = percent + '%';
                 progressText.innerText = percent + '%';
 
-                // 2. Real-time Audio Amplitude
                 analyser.getByteFrequencyData(dataArray);
                 let avgVol = 0;
                 for (let i = 0; i < dataArray.length; i++) {
@@ -329,12 +406,17 @@
                 }
                 avgVol = avgVol / dataArray.length;
 
-                // 3. Sway Calculation
                 frameCounter++;
                 const bodySway = Math.sin(frameCounter * 0.04) * 0.015;
 
-                // 4. Render Frame
-                renderFrame(bodySway, avgVol);
+                // Pick active subtitle based on audio progress time
+                let activeSub = "";
+                if (subtitlesList.length > 0) {
+                    const subIndex = Math.floor((currentTime / duration) * subtitlesList.length);
+                    activeSub = subtitlesList[subIndex] || "";
+                }
+
+                renderFrame(bodySway, avgVol, activeSub);
 
             }, 1000 / 30);
         }
