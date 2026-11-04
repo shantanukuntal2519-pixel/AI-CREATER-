@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Avatar Video Generator</title>
+    <title>AI Animated Avatar Video Generator</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -23,7 +23,7 @@
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            max-width: 500px;
+            max-width: 550px;
             width: 100%;
             text-align: center;
         }
@@ -55,9 +55,36 @@
         }
         canvas, video {
             width: 100%;
-            max-height: 280px;
+            max-height: 300px;
             object-fit: contain;
             display: block;
+        }
+
+        /* Progress Bar Styling */
+        .progress-box {
+            display: none;
+            margin: 15px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            height: 25px;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #00fff0, #3b82f6);
+            transition: width 0.1s linear;
+        }
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
         }
 
         .btn {
@@ -83,11 +110,11 @@
 <body>
 
     <div class="card">
-        <h1>YouTube Video Creator</h1>
-        <p>Photo aur Audio upload karke YouTube Video banayein</p>
+        <h1>AI Animated Avatar Creator</h1>
+        <p>Avatar Photo & Audio Upload Karein (Lip & Body Movement Enabled)</p>
 
         <div class="input-group">
-            <label>1. Select Image / Photo / Thumbnail:</label>
+            <label>1. Select Avatar / Photo:</label>
             <input type="file" id="imageInput" accept="image/*">
         </div>
 
@@ -102,8 +129,13 @@
             <div id="placeholderText" style="padding: 40px; color: #64748b;">Image & Audio Upload Karein</div>
         </div>
 
-        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Create Video</button>
-        <a id="downloadBtn" class="btn btn-download" download="youtube_ready_video.webm">Download Video</a>
+        <div class="progress-box" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+            <div class="progress-text" id="progressText">0%</div>
+        </div>
+
+        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Create Animated Video</button>
+        <a id="downloadBtn" class="btn btn-download" download="animated_avatar_video.webm">Download Video</a>
 
         <div id="status"></div>
     </div>
@@ -118,11 +150,14 @@
         const ctx = canvas.getContext('2d');
         const videoPreview = document.getElementById('videoPreview');
         const placeholderText = document.getElementById('placeholderText');
+        
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
 
         let loadedImage = null;
         let loadedAudio = null;
 
-        // Input Check
         function checkInputs() {
             if (imageInput.files[0] && audioInput.files[0]) {
                 renderBtn.disabled = false;
@@ -137,11 +172,11 @@
                     loadedImage = new Image();
                     loadedImage.src = event.target.result;
                     loadedImage.onload = () => {
-                        // Draw image on preview canvas
                         canvas.style.display = 'block';
                         placeholderText.style.display = 'none';
                         videoPreview.style.display = 'none';
-                        ctx.drawImage(loadedImage, 0, 0, canvas.width, canvas.height);
+                        downloadBtn.style.display = 'none';
+                        drawFrame(0, 0); // Static initial frame
                     };
                 };
                 reader.readAsDataURL(file);
@@ -157,23 +192,66 @@
             checkInputs();
         });
 
+        function drawFrame(bodyAngle = 0, lipOpenAmount = 0) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Black Background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // Apply Hand/Body Movement (Gentle Sway Rotation)
+            ctx.translate(canvas.width / 2, canvas.height);
+            ctx.rotate(bodyAngle);
+            
+            const imgWidth = canvas.width * 0.7;
+            const imgHeight = (loadedImage.height / loadedImage.width) * imgWidth;
+            const imgX = -imgWidth / 2;
+            const imgY = -imgHeight;
+
+            ctx.drawImage(loadedImage, imgX, imgY, imgWidth, imgHeight);
+
+            // Simulate Lip Movement
+            if (lipOpenAmount > 5) {
+                const mouthWidth = imgWidth * 0.12;
+                const mouthHeight = Math.min(lipOpenAmount * 0.5, 25);
+                const mouthX = -mouthWidth / 2;
+                const mouthY = imgY + (imgHeight * 0.58); // Approx mouth location
+
+                ctx.fillStyle = '#1a1a1a';
+                ctx.beginPath();
+                ctx.ellipse(mouthX + mouthWidth/2, mouthY, mouthWidth/2, mouthHeight/2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
         async function generateVideo() {
             if (!loadedImage || !loadedAudio) return;
 
             renderBtn.disabled = true;
-            status.innerText = "Video Processing me hai... Kripya wait karein.";
+            downloadBtn.style.display = 'none';
+            videoPreview.style.display = 'none';
+            canvas.style.display = 'block';
+            progressContainer.style.display = 'block';
+            
+            status.innerText = "Video rendering start ho rahi hai...";
+            progressBar.style.width = '0%';
+            progressText.innerText = '0%';
 
-            // Setup Web Audio Context to mix audio into video stream
+            // Audio Processing (Silent output during rendering)
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioCtx.createMediaElementSource(loadedAudio);
-            const dest = audioCtx.createMediaStreamDestination();
-            source.connect(dest);
-            source.connect(audioCtx.destination); // For listening while rendering
-
-            // Canvas Stream (30 FPS)
-            const canvasStream = canvas.captureStream(30);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
             
-            // Combine Audio + Video Stream
+            const dest = audioCtx.createMediaStreamDestination();
+            source.connect(analyser);
+            source.connect(dest); 
+            // Audio context is NOT connected to audioCtx.destination, so audio will be SILENT during rendering
+
+            const canvasStream = canvas.captureStream(30);
             const combinedStream = new MediaStream([
                 ...canvasStream.getVideoTracks(),
                 ...dest.stream.getAudioTracks()
@@ -197,23 +275,48 @@
                 downloadBtn.href = videoURL;
                 downloadBtn.style.display = 'block';
                 
-                status.innerText = "Video Tayar hai! Download karke YouTube par upload karein.";
+                status.innerText = "Video tayar hai! Niche button se Download karein.";
                 renderBtn.disabled = false;
+                progressContainer.style.display = 'none';
             };
 
-            // Start recording and audio playback
             loadedAudio.currentTime = 0;
             await loadedAudio.play();
             mediaRecorder.start();
 
-            // Continuously draw canvas during recording
+            const duration = loadedAudio.duration;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let frameCount = 0;
+
             const drawInterval = setInterval(() => {
-                ctx.drawImage(loadedImage, 0, 0, canvas.width, canvas.height);
+                // 1. Percentage Calculation
+                const currentTime = loadedAudio.currentTime;
+                const percent = Math.min(Math.round((currentTime / duration) * 100), 100);
+                progressBar.style.width = percent + '%';
+                progressText.innerText = percent + '%';
+                status.innerText = `Rendering in progress: ${percent}%`;
+
+                // 2. Audio Volume detection for Lip Sync
+                analyser.getByteFrequencyData(dataArray);
+                let volumeSum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    volumeSum += dataArray[i];
+                }
+                const averageVolume = volumeSum / dataArray.length;
+
+                // 3. Body/Hand Movement calculation (sine wave sway)
+                frameCount++;
+                const bodyAngle = Math.sin(frameCount * 0.05) * 0.02;
+
+                // 4. Render Frame with Animations
+                drawFrame(bodyAngle, averageVolume);
+
             }, 1000 / 30);
 
-            // Stop when audio ends
             loadedAudio.onended = () => {
                 clearInterval(drawInterval);
+                progressBar.style.width = '100%';
+                progressText.innerText = '100%';
                 mediaRecorder.stop();
                 audioCtx.close();
             };
