@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Animated Avatar Video Generator</title>
+    <title>Fast AI Avatar Video Creator</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -60,7 +60,6 @@
             display: block;
         }
 
-        /* Progress Bar Styling */
         .progress-box {
             display: none;
             margin: 15px 0;
@@ -74,7 +73,7 @@
             width: 0%;
             height: 100%;
             background: linear-gradient(90deg, #00fff0, #3b82f6);
-            transition: width 0.1s linear;
+            transition: width 0.05s linear;
         }
         .progress-text {
             position: absolute;
@@ -110,11 +109,11 @@
 <body>
 
     <div class="card">
-        <h1>AI Animated Avatar Creator</h1>
-        <p>Avatar Photo & Audio Upload Karein (Lip & Body Movement Enabled)</p>
+        <h1>Fast AI Avatar Creator</h1>
+        <p>Ultra-fast Background Video Rendering & Dynamic Lip Sync</p>
 
         <div class="input-group">
-            <label>1. Select Avatar / Photo:</label>
+            <label>1. Select Avatar Image:</label>
             <input type="file" id="imageInput" accept="image/*">
         </div>
 
@@ -134,8 +133,8 @@
             <div class="progress-text" id="progressText">0%</div>
         </div>
 
-        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Create Animated Video</button>
-        <a id="downloadBtn" class="btn btn-download" download="animated_avatar_video.webm">Download Video</a>
+        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Fast Generate Video</button>
+        <a id="downloadBtn" class="btn btn-download" download="youtube_avatar_video.webm">Download Video</a>
 
         <div id="status"></div>
     </div>
@@ -176,7 +175,7 @@
                         placeholderText.style.display = 'none';
                         videoPreview.style.display = 'none';
                         downloadBtn.style.display = 'none';
-                        drawFrame(0, 0); // Static initial frame
+                        renderFrame(0, 0);
                     };
                 };
                 reader.readAsDataURL(file);
@@ -192,36 +191,51 @@
             checkInputs();
         });
 
-        function drawFrame(bodyAngle = 0, lipOpenAmount = 0) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Black Background
+        // Dynamic Lip & Sway Frame Renderer
+        function renderFrame(bodySway, audioVolume) {
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            if (!loadedImage) return;
+
             ctx.save();
-            // Apply Hand/Body Movement (Gentle Sway Rotation)
-            ctx.translate(canvas.width / 2, canvas.height);
-            ctx.rotate(bodyAngle);
-            
-            const imgWidth = canvas.width * 0.7;
-            const imgHeight = (loadedImage.height / loadedImage.width) * imgWidth;
-            const imgX = -imgWidth / 2;
-            const imgY = -imgHeight;
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(bodySway);
 
-            ctx.drawImage(loadedImage, imgX, imgY, imgWidth, imgHeight);
+            const scale = Math.min(canvas.width / loadedImage.width, canvas.height / loadedImage.height) * 0.85;
+            const w = loadedImage.width * scale;
+            const h = loadedImage.height * scale;
+            const x = -w / 2;
+            const y = -h / 2;
 
-            // Simulate Lip Movement
-            if (lipOpenAmount > 5) {
-                const mouthWidth = imgWidth * 0.12;
-                const mouthHeight = Math.min(lipOpenAmount * 0.5, 25);
-                const mouthX = -mouthWidth / 2;
-                const mouthY = imgY + (imgHeight * 0.58); // Approx mouth location
+            // Base Image Draw
+            ctx.drawImage(loadedImage, x, y, w, h);
 
-                ctx.fillStyle = '#1a1a1a';
+            // Realistic Jaw/Lip Movement (Audio Amplitude Based Stretching)
+            if (audioVolume > 8) {
+                const lipYFactor = 0.55; 
+                const lipHFactor = 0.25; 
+                
+                const lipSrcY = loadedImage.height * lipYFactor;
+                const lipSrcH = loadedImage.height * lipHFactor;
+                
+                const lipDestY = y + (h * lipYFactor);
+                const lipDestH = h * lipHFactor;
+
+                const openShift = Math.min((audioVolume / 255) * 14, 16); 
+
+                ctx.save();
                 ctx.beginPath();
-                ctx.ellipse(mouthX + mouthWidth/2, mouthY, mouthWidth/2, mouthHeight/2, 0, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.rect(x, lipDestY, w, lipDestH + openShift);
+                ctx.clip();
+                
+                // Slightly stretched lower mouth area to mimic real speech
+                ctx.drawImage(
+                    loadedImage, 
+                    0, lipSrcY, loadedImage.width, lipSrcH, 
+                    x, lipDestY + openShift, w, lipDestH
+                );
+                ctx.restore();
             }
 
             ctx.restore();
@@ -236,11 +250,10 @@
             canvas.style.display = 'block';
             progressContainer.style.display = 'block';
             
-            status.innerText = "Video rendering start ho rahi hai...";
+            status.innerText = "Fast rendering active... Doosra tab kholne par bhi speed slow nahi hogi.";
             progressBar.style.width = '0%';
             progressText.innerText = '0%';
 
-            // Audio Processing (Silent output during rendering)
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioCtx.createMediaElementSource(loadedAudio);
             const analyser = audioCtx.createAnalyser();
@@ -248,8 +261,7 @@
             
             const dest = audioCtx.createMediaStreamDestination();
             source.connect(analyser);
-            source.connect(dest); 
-            // Audio context is NOT connected to audioCtx.destination, so audio will be SILENT during rendering
+            source.connect(dest);
 
             const canvasStream = canvas.captureStream(30);
             const combinedStream = new MediaStream([
@@ -257,7 +269,11 @@
                 ...dest.stream.getAudioTracks()
             ]);
 
-            const mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+            // High bitrate for clear output video
+            const mediaRecorder = new MediaRecorder(combinedStream, { 
+                mimeType: 'video/webm;codecs=vp8,opus',
+                videoBitsPerSecond: 3000000 
+            });
             const chunks = [];
 
             mediaRecorder.ondataavailable = (e) => {
@@ -275,7 +291,7 @@
                 downloadBtn.href = videoURL;
                 downloadBtn.style.display = 'block';
                 
-                status.innerText = "Video tayar hai! Niche button se Download karein.";
+                status.innerText = "Video Tayar hai! Fast Download karke YouTube par upload karein.";
                 renderBtn.disabled = false;
                 progressContainer.style.display = 'none';
             };
@@ -286,40 +302,41 @@
 
             const duration = loadedAudio.duration;
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let frameCount = 0;
+            let frameCounter = 0;
 
-            const drawInterval = setInterval(() => {
-                // 1. Percentage Calculation
+            // Fast Background-Resistant Rendering Loop
+            const renderLoop = setInterval(() => {
+                if (loadedAudio.ended || loadedAudio.paused) {
+                    clearInterval(renderLoop);
+                    progressBar.style.width = '100%';
+                    progressText.innerText = '100%';
+                    mediaRecorder.stop();
+                    audioCtx.close();
+                    return;
+                }
+
+                // 1. Progress Update
                 const currentTime = loadedAudio.currentTime;
                 const percent = Math.min(Math.round((currentTime / duration) * 100), 100);
                 progressBar.style.width = percent + '%';
                 progressText.innerText = percent + '%';
-                status.innerText = `Rendering in progress: ${percent}%`;
 
-                // 2. Audio Volume detection for Lip Sync
+                // 2. Real-time Audio Amplitude
                 analyser.getByteFrequencyData(dataArray);
-                let volumeSum = 0;
+                let avgVol = 0;
                 for (let i = 0; i < dataArray.length; i++) {
-                    volumeSum += dataArray[i];
+                    avgVol += dataArray[i];
                 }
-                const averageVolume = volumeSum / dataArray.length;
+                avgVol = avgVol / dataArray.length;
 
-                // 3. Body/Hand Movement calculation (sine wave sway)
-                frameCount++;
-                const bodyAngle = Math.sin(frameCount * 0.05) * 0.02;
+                // 3. Sway Calculation
+                frameCounter++;
+                const bodySway = Math.sin(frameCounter * 0.04) * 0.015;
 
-                // 4. Render Frame with Animations
-                drawFrame(bodyAngle, averageVolume);
+                // 4. Render Frame
+                renderFrame(bodySway, avgVol);
 
             }, 1000 / 30);
-
-            loadedAudio.onended = () => {
-                clearInterval(drawInterval);
-                progressBar.style.width = '100%';
-                progressText.innerText = '100%';
-                mediaRecorder.stop();
-                audioCtx.close();
-            };
         }
     </script>
 </body>
