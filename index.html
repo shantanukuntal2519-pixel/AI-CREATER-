@@ -3,39 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mera AI Avatar</title>
+    <title>AI Avatar Video Generator</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            background: linear-gradient(45deg, #1a1a1a, #4a4a4a);
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
             color: white;
-            font-family: sans-serif;
-            text-align: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
         }
         .card {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
             padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
         }
-        .avatar {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            border: 3px solid #00fff0;
+        h1 { margin-bottom: 8px; color: #00fff0; font-size: 1.6rem; }
+        p { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 20px; }
+        
+        .input-group {
             margin-bottom: 15px;
+            text-align: left;
         }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #94a3b8; }
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .preview-area {
+            margin: 20px 0;
+            position: relative;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas, video {
+            width: 100%;
+            max-height: 280px;
+            object-fit: contain;
+            display: block;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.3s ease;
+            margin-top: 10px;
+        }
+        .btn-generate { background: #00fff0; color: #0f172a; }
+        .btn-generate:hover { background: #00d8cc; }
+        .btn-download { background: #22c55e; color: white; display: none; text-decoration: none; text-align: center; line-height: 2.5rem; }
+        .btn-download:hover { background: #16a34a; }
+        .btn:disabled { background: #475569; cursor: not-allowed; color: #94a3b8; }
+        
+        #status { margin-top: 10px; font-size: 0.85rem; color: #38bdf8; }
     </style>
 </head>
 <body>
+
     <div class="card">
-        <img class="avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=Felix" alt="AI Avatar">
-        <h1>Mera AI Creator Page</h1>
-        <p>Welcome to my channel!</p>
+        <h1>YouTube Video Creator</h1>
+        <p>Photo aur Audio upload karke YouTube Video banayein</p>
+
+        <div class="input-group">
+            <label>1. Select Image / Photo / Thumbnail:</label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="input-group">
+            <label>2. Select Audio Track (MP3/WAV):</label>
+            <input type="file" id="audioInput" accept="audio/*">
+        </div>
+
+        <div class="preview-area">
+            <canvas id="videoCanvas" width="1280" height="720" style="display:none;"></canvas>
+            <video id="videoPreview" controls style="display:none;"></video>
+            <div id="placeholderText" style="padding: 40px; color: #64748b;">Image & Audio Upload Karein</div>
+        </div>
+
+        <button id="renderBtn" class="btn btn-generate" onclick="generateVideo()" disabled>Create Video</button>
+        <a id="downloadBtn" class="btn btn-download" download="youtube_ready_video.webm">Download Video</a>
+
+        <div id="status"></div>
     </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const audioInput = document.getElementById('audioInput');
+        const renderBtn = document.getElementById('renderBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const videoPreview = document.getElementById('videoPreview');
+        const placeholderText = document.getElementById('placeholderText');
+
+        let loadedImage = null;
+        let loadedAudio = null;
+
+        // Input Check
+        function checkInputs() {
+            if (imageInput.files[0] && audioInput.files[0]) {
+                renderBtn.disabled = false;
+            }
+        }
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    loadedImage = new Image();
+                    loadedImage.src = event.target.result;
+                    loadedImage.onload = () => {
+                        // Draw image on preview canvas
+                        canvas.style.display = 'block';
+                        placeholderText.style.display = 'none';
+                        videoPreview.style.display = 'none';
+                        ctx.drawImage(loadedImage, 0, 0, canvas.width, canvas.height);
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+            checkInputs();
+        });
+
+        audioInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                loadedAudio = new Audio(URL.createObjectURL(file));
+            }
+            checkInputs();
+        });
+
+        async function generateVideo() {
+            if (!loadedImage || !loadedAudio) return;
+
+            renderBtn.disabled = true;
+            status.innerText = "Video Processing me hai... Kripya wait karein.";
+
+            // Setup Web Audio Context to mix audio into video stream
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaElementSource(loadedAudio);
+            const dest = audioCtx.createMediaStreamDestination();
+            source.connect(dest);
+            source.connect(audioCtx.destination); // For listening while rendering
+
+            // Canvas Stream (30 FPS)
+            const canvasStream = canvas.captureStream(30);
+            
+            // Combine Audio + Video Stream
+            const combinedStream = new MediaStream([
+                ...canvasStream.getVideoTracks(),
+                ...dest.stream.getAudioTracks()
+            ]);
+
+            const mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+            const chunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const videoURL = URL.createObjectURL(blob);
+                
+                videoPreview.src = videoURL;
+                videoPreview.style.display = 'block';
+                canvas.style.display = 'none';
+                
+                downloadBtn.href = videoURL;
+                downloadBtn.style.display = 'block';
+                
+                status.innerText = "Video Tayar hai! Download karke YouTube par upload karein.";
+                renderBtn.disabled = false;
+            };
+
+            // Start recording and audio playback
+            loadedAudio.currentTime = 0;
+            await loadedAudio.play();
+            mediaRecorder.start();
+
+            // Continuously draw canvas during recording
+            const drawInterval = setInterval(() => {
+                ctx.drawImage(loadedImage, 0, 0, canvas.width, canvas.height);
+            }, 1000 / 30);
+
+            // Stop when audio ends
+            loadedAudio.onended = () => {
+                clearInterval(drawInterval);
+                mediaRecorder.stop();
+                audioCtx.close();
+            };
+        }
+    </script>
 </body>
 </html>
